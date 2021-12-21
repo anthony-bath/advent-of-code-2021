@@ -1,43 +1,71 @@
-import fs from "fs";
+import fs, { symlink } from "fs";
 
-class Scanner {
+export class Scanner {
   constructor(id) {
     this.id = id;
-    this.points = [];
-    this.vectors = {};
+    this.beacons = [];
+    this.rotations = new Map();
+    this.vectors = new Map();
   }
 
-  addPoint(point) {
-    this.points.push(point);
+  addBeacon(beacon) {
+    this.beacons.push(beacon);
+    this.setRotations(beacon);
   }
 
   calculateVectors() {
-    for (let i = 0; i < this.points.length; i++) {
-      for (let j = 0; j < this.points.length; j++) {
-        if (i === j) continue;
+    for (let i = 0; i < this.beacons.length; i++) {
+      for (let j = 0; j < this.beacons.length; j++) {
+        if (
+          i === j ||
+          this.vectors.has(`${i}-${j}`) ||
+          this.vectors.has(`${j}-${i}`)
+        ) {
+          continue;
+        }
 
-        const p1 = this.points[i];
-        const p2 = this.points[j];
+        const p1 = this.beacons[i];
+        const p2 = this.beacons[j];
 
-        this.vectors[`${i}-${j}`] = new Vector(p1, p2);
+        this.vectors.set(`${i}-${j}`, new Vector(p1, p2));
       }
     }
   }
+
+  setRotations(beacon) {
+    const { x, y, z } = beacon;
+
+    this.rotations.set(beacon, [
+      new Point(x, y, z),
+      new Point(x, -z, y),
+      new Point(x, -y, -z),
+      new Point(x, z, -y),
+
+      new Point(-x, -y, z),
+      new Point(-x, z, y),
+      new Point(-x, y, -z),
+      new Point(-x, -z, -y),
+    ]);
+  }
 }
 
-class Point {
+export class Point {
   constructor(x, y, z) {
     this.x = x;
     this.y = y;
     this.z = z;
   }
 
+  diff(point) {
+    return new Point(this.x - point.x, this.y - point.y, this.z - point.z);
+  }
+
   toString() {
-    return `${this.x}, ${this.y}, ${this.z}`;
+    return `(${this.x}, ${this.y}, ${this.z})`;
   }
 }
 
-class Vector {
+export class Vector {
   constructor(p1, p2) {
     this.direction = new Point(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z);
 
@@ -45,9 +73,12 @@ class Vector {
     this.magnitude = Math.sqrt(x * x + y * y + z * z);
   }
 
+  equiDistant(vector) {
+    return this.magnitude === vector.magnitude;
+  }
+
   toString() {
-    const { x, y, z } = this.direction;
-    return `${this.magnitude} (${x}, ${y}, ${z})`;
+    return `${this.magnitude} (${this.direction.toString()})`;
   }
 }
 
@@ -67,7 +98,7 @@ export const loadData = () => {
       scanners.push(scanner);
     } else if (line && !line.startsWith("---")) {
       const [x, y, z] = line.split(",").map((n) => parseInt(n));
-      scanner.addPoint(new Point(x, y, z));
+      scanner.addBeacon(new Point(x, y, z));
     }
   });
 
